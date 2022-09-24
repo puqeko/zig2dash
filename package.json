@@ -1,0 +1,11 @@
+{
+  "name": "zig2dash",
+  "module": "index.js",
+  "type": "module",
+  "devDependencies": {
+    "bun-types": "^0.1.0"
+  },
+  "dependencies": {
+    "jsdom": "^20.0.0"
+  }
+}
