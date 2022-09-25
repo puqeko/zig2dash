@@ -6,6 +6,12 @@
     "bun-types": "^0.1.0"
   },
   "dependencies": {
-    "jsdom": "^20.0.0"
+    "bun-utilities": "^0.2.1",
+    "child_process": "^1.0.2",
+    "html-minifier": "^4.0.0",
+    "jsdom": "^20.0.0",
+    "sequelize": "^6.23.1",
+    "sqlite3": "^5.1.1",
+    "vm": "^0.1.0"
   }
 }
