@@ -1,4 +1,4 @@
-// Make a docset for the Zig Standard Lib accroding to https://kapeli.com/docsets
+// Make a docset for the Zig Language Reference accroding to https://kapeli.com/docsets
 
 const { JSDOM } = require("jsdom");
 const fs = require("fs");
@@ -36,10 +36,6 @@ async function index(seq, name, type, filepath) {
   console.log(type, name, filepath);
   const CMD = "INSERT OR IGNORE INTO searchIndex(name, type, path) VALUES ";
   await seq.query(CMD + `('${name}', '${type}', '${filepath}');`);  // add to table
-  // const aggregate = "MAX(id)";
-  // const [results, metadata] = await seq.query(`SELECT ${aggregate} from searchIndex;`);  // get id assigned
-  // if (!results || !results[0] || !results[0][aggregate]) throw Error("Could not get id back from table");
-  // return results[0][aggregate];
 }
 
 async function main () {
@@ -54,11 +50,11 @@ async function main () {
     await seq.query(`CREATE TABLE searchIndex(id INTEGER PRIMARY KEY, name TEXT, type TEXT, path TEXT);`);
     await seq.query(`CREATE UNIQUE INDEX anchor ON searchIndex (name, type, path);`);
 
-    fs.copyFileSync("template/icon.png", `${DOCSET_NAME}/icon.png`);
-    fs.copyFileSync("template/icon@2x.png", `${DOCSET_NAME}/icon@2x.png`);
+    fs.copyFileSync("templates/icon.png", `${DOCSET_NAME}/icon.png`);
+    fs.copyFileSync("templates/icon@2x.png", `${DOCSET_NAME}/icon@2x.png`);
 
     fs.mkdirSync(`${DOCSET_NAME}/Contents/`, {recursive: true});
-    fs.copyFileSync("template/info.plist", `${DOCSET_NAME}/Contents/info.plist`);
+    fs.copyFileSync("templates/info.plist", `${DOCSET_NAME}/Contents/info.plist`);
   }
 
   console.log(`Featching ${BASE_URL}`);
@@ -70,7 +66,7 @@ async function main () {
   console.log(`Waiting for page load...`);
   dom.window.addEventListener('load', async (event) => {
     const doc = dom.window.document;
-    // await index(seq, "Guide", doc.querySelector("h1").textContent, GUIDE_PATH, 0);  // add to db
+    await index(seq, doc.querySelector("h1").textContent, "Guide", GUIDE_PATH);  // add to db
 
     // strip document: remove search bar and inputs
     doc.querySelector("#navigation").remove();
@@ -113,7 +109,7 @@ async function main () {
       }
     }
 
-    // TODO: Specially add primitive types
+    // Specially add primitive types
     console.log("PIMITIVES");
     let primTblEl;
     for (const t of mainEl.querySelectorAll("table caption")) {
@@ -131,9 +127,12 @@ async function main () {
       }
     }
 
-    const filestr = dom.serialize();
+    // const filestr = dom.serialize();
+    const filestr = htmlMinify.minify(temp.serialize(), htmlMinOpts);
     await fs.promises.writeFile(DOCSET_PATH + GUIDE_PATH, filestr);
   });
 }
 
 main();
+
+// TODO: replace std lib references

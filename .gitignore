@@ -1,7 +1,6 @@
 # Extra
 
 *.docset
-websrc
 .DS_Store
 log.txt
 

@@ -198,11 +198,11 @@ async function main () {
     await seq.query(`CREATE TABLE searchIndex(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, type TEXT, path TEXT, parent INTEGER);`);
     await seq.query(`CREATE UNIQUE INDEX anchor ON searchIndex (name, type, path, parent);`);
 
-    fs.copyFileSync("template/icon.png", `${DOCSET_NAME}/icon.png`);
-    fs.copyFileSync("template/icon@2x.png", `${DOCSET_NAME}/icon@2x.png`);
+    fs.copyFileSync("templates/icon.png", `${DOCSET_NAME}/icon.png`);
+    fs.copyFileSync("templates/icon@2x.png", `${DOCSET_NAME}/icon@2x.png`);
 
     fs.mkdirSync(`${DOCSET_NAME}/Contents/`, {recursive: true});
-    fs.copyFileSync("template/info.plist", `${DOCSET_NAME}/Contents/info.plist`);
+    fs.copyFileSync("templates/info.plist", `${DOCSET_NAME}/Contents/info.plist`);
   }
 
   console.log(`Featching ${BASE_URL}`);
