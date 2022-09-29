@@ -7,7 +7,7 @@ const htmlMinify = require('html-minifier');
 
 const BASE_URL = "https://ziglang.org/documentation/master";
 const STD_PATH = "https://ziglang.org/documentation/master/std";
-const GUIDE_PATH = "guide.html";
+const GUIDE_PATH = "Zig\ Language\ Reference.html";
 // TODO cross link to std lib
 const DOCSET_NAME = "zigstd-guide.docset";
 const DOCSET_PATH = DOCSET_NAME + "/Contents/Resources/Documents/";
@@ -32,14 +32,14 @@ function toc(doc, el, type, name) {
   el.parentElement.insertBefore(markEl, el);
 }
 
-async function index(seq, type, name, filepath, parentId) {
+async function index(seq, name, type, filepath) {
   console.log(type, name, filepath);
-  const CMD = "INSERT OR IGNORE INTO searchIndex(name, type, path, parent) VALUES ";
-  await seq.query(CMD + `('${name}', '${type}', '${filepath}', '${parentId}');`);  // add to table
-  const aggregate = "MAX(id)";
-  const [results, metadata] = await seq.query(`SELECT ${aggregate} from searchIndex;`);  // get id assigned
-  if (!results || !results[0] || !results[0][aggregate]) throw Error("Could not get id back from table");
-  return results[0][aggregate];
+  const CMD = "INSERT OR IGNORE INTO searchIndex(name, type, path) VALUES ";
+  await seq.query(CMD + `('${name}', '${type}', '${filepath}');`);  // add to table
+  // const aggregate = "MAX(id)";
+  // const [results, metadata] = await seq.query(`SELECT ${aggregate} from searchIndex;`);  // get id assigned
+  // if (!results || !results[0] || !results[0][aggregate]) throw Error("Could not get id back from table");
+  // return results[0][aggregate];
 }
 
 async function main () {
@@ -51,8 +51,8 @@ async function main () {
 
   if (!DRY_RUN) {
     fs.rmSync(DOCSET_NAME, {recursive: true, force: true});
-    await seq.query(`CREATE TABLE searchIndex(id INTEGER PRIMARY KEY, name TEXT, type TEXT, path TEXT, parent INTEGER);`);
-    await seq.query(`CREATE UNIQUE INDEX anchor ON searchIndex (name, type, path, parent);`);
+    await seq.query(`CREATE TABLE searchIndex(id INTEGER PRIMARY KEY, name TEXT, type TEXT, path TEXT);`);
+    await seq.query(`CREATE UNIQUE INDEX anchor ON searchIndex (name, type, path);`);
 
     fs.copyFileSync("template/icon.png", `${DOCSET_NAME}/icon.png`);
     fs.copyFileSync("template/icon@2x.png", `${DOCSET_NAME}/icon@2x.png`);
@@ -70,7 +70,7 @@ async function main () {
   console.log(`Waiting for page load...`);
   dom.window.addEventListener('load', async (event) => {
     const doc = dom.window.document;
-    const thisId = index(seq, "Guide", doc.querySelector("h1").textContent, GUIDE_PATH, 0);  // add to db
+    // await index(seq, "Guide", doc.querySelector("h1").textContent, GUIDE_PATH, 0);  // add to db
 
     // strip document: remove search bar and inputs
     doc.querySelector("#navigation").remove();
@@ -80,11 +80,17 @@ async function main () {
 
     // extract stylesheet to file to save space
     const styleEl = doc.querySelector("style");
-    if (!DRY_RUN) {
-      fs.mkdirSync(DOCSET_PATH, {recursive: true});
-      fs.writeFileSync(`${DOCSET_PATH}style.css`, styleEl.innerHTML);  // added to prevent anchors messing up the page styling
+    styleEl.textContent = styleEl.textContent +
+    `#contents-wrapper, header {
+      margin-left: 0;
     }
-    styleEl.remove();
+    header h1 {
+      margin-top: 1em;
+    }
+    `;  // clean up the title a bit
+
+    if (!DRY_RUN)
+      fs.mkdirSync(DOCSET_PATH, {recursive: true});
 
     const titleEl = doc.querySelector("title");
     titleEl.innerHTML = "Zig Language Reference";
@@ -93,15 +99,16 @@ async function main () {
     // Add markers and index headers
     for (const h of mainEl.querySelectorAll("h1, h2, h3, h4, h5, h6")) {
       const headText = h.textContent.trim();
+      h.textContent = headText;  // removes child link
       const filepath = GUIDE_PATH + "#" + h.id;
       if (headText.startsWith("@")) {  // builtin
-        index(seq, headText, "Builtin", filepath, thisId);
+        await index(seq, headText, "Builtin", filepath);
         toc(doc, h, "Builtin", headText);
       } else if (headText.toLowerCase() == headText) {  // probably language keyword eg for, while, return
-        index(seq, headText, "Keyword", filepath, thisId);
+        await index(seq, headText, "Keyword", filepath);
         toc(doc, h, "Keyword", headText);
       } else {  // guides
-        index(seq, headText, "Guide", filepath, thisId);
+        await index(seq, headText, "Guide", filepath);
         toc(doc, h, "Guide", headText);
       }
     }
@@ -116,10 +123,11 @@ async function main () {
     else {
       const label = "#Primitive-Types";
       const filepath = GUIDE_PATH + label;  // Assuming this won't change
-      console.assert(doc.querySelector(label) !== undefined);
+      const h = doc.querySelector(label);
+      console.assert(h !== undefined);
       for (const th of primTblEl.querySelectorAll("tbody th")) {
         index(seq, th.textContent, "Type", filepath);
-        toc(doc, th.firstElementChild, "Type", th.textContent);
+        toc(doc, h, "Type", th.textContent);
       }
     }
 

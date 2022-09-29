@@ -57,7 +57,7 @@ function getFullUrl(a) {
   return (new URL(href, BASE_URL)).href;
 }
 
-async function index(seq, name, filepath, type) {
+async function index(seq, name, type, filepath) {
   console.log(type, name, filepath);
   const CMD = "INSERT OR IGNORE INTO searchIndex(name, type, path) VALUES ";
   await seq.query(CMD + `('${name}', '${type}', '${filepath}');`);  // add to table
@@ -89,7 +89,7 @@ async function onFinishedFirstLoad(dom, seq, _) {
 
     let ip = undefined;
     if (!DRY_RUN)
-      ip = index(seq, name.split(".").at(-1), filepath, seen.get(cur));  // insert into db
+      ip = index(seq, name.split(".").at(-1), seen.get(cur), filepath);  // insert into db
     let mp = undefined;
     if (!DRY_RUN && filepath.includes("/"))  // create empty dir if it doesn't exist
        mp = fs.promises.mkdir(DOCSET_PATH + filepath.slice(0, filepath.lastIndexOf("/")), {recursive: true});
