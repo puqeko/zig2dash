@@ -5,7 +5,7 @@ const { Sequelize } = require('sequelize');
 const htmlMinify = require('html-minifier');
 
 const BASE_URL = "https://ziglang.org/documentation/master/std";
-const DOCSET_NAME = "zig.docset"
+const DOCSET_NAME = "zig-std.docset"
 const DOCSET_PATH = DOCSET_NAME + "/Contents/Resources/Documents/";
 const DRY_RUN = false;
 
@@ -35,10 +35,11 @@ function toName(key, root) {
 }
 
 function toPath(name) {
-  let n = name.split(".");
-  let s = n.slice(0, -1).join('/');
-  if (s) s += '/';
-  return s + name + ".html";  // n.slice(-2).join(".")
+  return name.replaceAll(".", "/") + ".html";
+  // let n = name.split(".");
+  // let s = n.slice(0, -1).join('/');
+  // if (s) s += '/';
+  // return s + name + ".html";  // n.slice(-2).join(".")
 }
 
 function getFullUrl(a) {
@@ -60,7 +61,10 @@ function getFullUrl(a) {
 async function index(seq, name, type, filepath) {
   console.log(type, name, filepath);
   const CMD = "INSERT OR IGNORE INTO searchIndex(name, type, path) VALUES ";
-  await seq.query(CMD + `('${name}', '${type}', '${filepath}');`);  // add to table
+  // this description is displayed next to the result and distingushes similar results
+  const pathStr = filepath + `<dash_entry_menuDescription=${encodeURIComponent(name)}>`;
+  const nameStr = name.split(".").at(-1);
+  await seq.query(CMD + `('${nameStr}', '${type}', '${pathStr}');`);  // add to table
 }
 
 async function onFinishedFirstLoad(dom, seq, _) {
@@ -89,7 +93,7 @@ async function onFinishedFirstLoad(dom, seq, _) {
 
     let ip = undefined;
     if (!DRY_RUN)
-      ip = index(seq, name.split(".").at(-1), seen.get(cur), filepath);  // insert into db
+      ip = index(seq, name, seen.get(cur), filepath);  // insert into db
     let mp = undefined;
     if (!DRY_RUN && filepath.includes("/"))  // create empty dir if it doesn't exist
        mp = fs.promises.mkdir(DOCSET_PATH + filepath.slice(0, filepath.lastIndexOf("/")), {recursive: true});
@@ -225,7 +229,7 @@ async function main () {
     doc.querySelector("label").remove();
     doc.querySelector(".sidebar").remove();
     doc.querySelector(".flex-filler").remove();
-    doc.querySelector(".banner").remove();
+    // doc.querySelector(".banner").remove();  // might be good to show 'beta' banner
     doc.querySelector("#status").remove();
     doc.querySelector("link").remove();  // icon
     for (const inp of doc.querySelectorAll("input")) {
