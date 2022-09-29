@@ -36,7 +36,9 @@ function toName(key, root) {
 
 function toPath(name) {
   let n = name.split(".");
-  return n.slice(0, -1).join('/') + n.slice(-2).join(".") + ".html";
+  let s = n.slice(0, -1).join('/');
+  if (s) s += '/';
+  return s + name + ".html";  // n.slice(-2).join(".")
 }
 
 function getFullUrl(a) {
@@ -55,14 +57,10 @@ function getFullUrl(a) {
   return (new URL(href, BASE_URL)).href;
 }
 
-async function index(seq, name, filepath, info) {
-  console.log(info.type, name, filepath);
-  const CMD = "INSERT OR IGNORE INTO searchIndex(name, type, path, parent) VALUES ";
-  await seq.query(CMD + `('${name.split(".").at(-1)}', '${info.type}', '${filepath}', '${info.parentId}');`);  // add to table
-  const aggregate = "MAX(id)";
-  const [results, metadata] = await seq.query(`SELECT ${aggregate} from searchIndex;`);  // get id assigned
-  if (!results || !results[0] || !results[0][aggregate]) throw Error("Could not get id back from table");
-  return results[0][aggregate];
+async function index(seq, name, filepath, type) {
+  console.log(type, name, filepath);
+  const CMD = "INSERT OR IGNORE INTO searchIndex(name, type, path) VALUES ";
+  await seq.query(CMD + `('${name}', '${type}', '${filepath}');`);  // add to table
 }
 
 async function onFinishedFirstLoad(dom, seq, _) {
@@ -72,7 +70,7 @@ async function onFinishedFirstLoad(dom, seq, _) {
     "Namespace": "#sectNamespaces",
     "Global": "#sectGlobalVars",
     "Function": "#sectFns",
-    // "Value": "#sectValues",
+    "Value": "#sectValues",
     "Error": "#sectErrSets",
   };
 
@@ -81,14 +79,17 @@ async function onFinishedFirstLoad(dom, seq, _) {
   let next = [];
   let seen = new Map();
   let done = new Set();
-  seen.set(cur, {type: "Library", parentId: 0});
+  seen.set(cur, "Library");
 
   // create copy of dom, parse results, output to file, populate db
   // follow links, add to stack, process next on stack until empty
   async function onRender(_) {
     const name = toName(cur, root);
     const filepath = toPath(name);
-    const ip = index(seq, name, filepath, seen.get(cur));  // insert into db
+
+    let ip = undefined;
+    if (!DRY_RUN)
+      ip = index(seq, name.split(".").at(-1), filepath, seen.get(cur));  // insert into db
     let mp = undefined;
     if (!DRY_RUN && filepath.includes("/"))  // create empty dir if it doesn't exist
        mp = fs.promises.mkdir(DOCSET_PATH + filepath.slice(0, filepath.lastIndexOf("/")), {recursive: true});
@@ -105,7 +106,6 @@ async function onFinishedFirstLoad(dom, seq, _) {
       linkSets[type] = new Set(tdoc.querySelectorAll(`${secids[type]} a`));
 
     const dotsToRoot = "../".repeat(filepath.split("/").length - 1);
-    const thisId = await ip;
     for (const a of allLinks) {
       // webapp uses #root;Type.func format to navigate
       // only index links to this page
@@ -120,7 +120,7 @@ async function onFinishedFirstLoad(dom, seq, _) {
         for (const type in linkSets) {
           if (linkSets[type].has(a)) {
             next.push(a.hash);  // to be indexed
-            seen.set(a.hash, {type: type, parentId: thisId});
+            seen.set(a.hash, type);
             is_indexed = true;
             break;
           }
@@ -136,7 +136,7 @@ async function onFinishedFirstLoad(dom, seq, _) {
     while (next.length > 0) {
       cur = next.pop();
       if (!done.has(cur)) {
-        dom.window.location.hash = cur;  // trigger redraw
+        dom.window.location.hash = cur;
         dom.window.requestAnimationFrame(onRender);  // wait for redraw
         break;
       }
@@ -171,14 +171,15 @@ async function onFinishedFirstLoad(dom, seq, _) {
       lf.insertBefore(markEl, lf.firstElementChild);
     }
 
-    const titleEl = tdoc.querySelector("title");
-    titleEl.innerHTML = name;
+    const titleEL = tdoc.querySelector("title");
+    titleEL.innerHTML = name.split(".").at(-1);
 
     if (!DRY_RUN) {
       // const filestr = temp.serialize();
       const filestr = htmlMinify.minify(temp.serialize(), htmlMinOpts);
-      if (mp !== undefined) await mp;
+      if (mp !== undefined) await mp;  // mkdir
       await fs.promises.writeFile(DOCSET_PATH + filepath, filestr);
+      if (ip !== undefined) await ip;  // db entry
     } else console.log(toName(thisCur, root), seen.get(thisCur), filepath);
   }
 
@@ -234,8 +235,8 @@ async function main () {
     // extract stylesheet to file to save space
     const styleEl = doc.querySelector("style");
     if (!DRY_RUN) {
-      fs.mkdirSync(`${DOCSET_NAME}/Contents/Resources/Documents/`, {recursive: true});
-      fs.writeFileSync(`${DOCSET_NAME}/Contents/Resources/Documents/style.css`, styleEl.innerHTML);
+      fs.mkdirSync(DOCSET_PATH, {recursive: true});
+      fs.writeFileSync(`${DOCSET_PATH}/style.css`, styleEl.innerHTML);
     }
     styleEl.remove();
 

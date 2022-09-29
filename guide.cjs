@@ -10,6 +10,7 @@ const STD_PATH = "https://ziglang.org/documentation/master/std";
 const GUIDE_PATH = "guide.html";
 // TODO cross link to std lib
 const DOCSET_NAME = "zigstd-guide.docset";
+const DOCSET_PATH = DOCSET_NAME + "/Contents/Resources/Documents/";
 const DRY_RUN = false;
 
 const htmlMinOpts = {
@@ -32,7 +33,7 @@ function toc(doc, el, type, name) {
 }
 
 async function index(seq, type, name, filepath, parentId) {
-  console.log(info.type, name, filepath);
+  console.log(type, name, filepath);
   const CMD = "INSERT OR IGNORE INTO searchIndex(name, type, path, parent) VALUES ";
   await seq.query(CMD + `('${name}', '${type}', '${filepath}', '${parentId}');`);  // add to table
   const aggregate = "MAX(id)";
@@ -44,13 +45,14 @@ async function index(seq, type, name, filepath, parentId) {
 async function main () {
   const seq = new Sequelize({
     dialect: 'sqlite',
+    logging: false,
     storage: `${DOCSET_NAME}/Contents/Resources/docSet.dsidx`
   });
 
   if (!DRY_RUN) {
     fs.rmSync(DOCSET_NAME, {recursive: true, force: true});
-    await seq.query(`CREATE TABLE searchIndex(id INTEGER PRIMARY KEY, name TEXT, type TEXT, path TEXT);`);
-    await seq.query(`CREATE UNIQUE INDEX anchor ON searchIndex (name, type, path);`);
+    await seq.query(`CREATE TABLE searchIndex(id INTEGER PRIMARY KEY, name TEXT, type TEXT, path TEXT, parent INTEGER);`);
+    await seq.query(`CREATE UNIQUE INDEX anchor ON searchIndex (name, type, path, parent);`);
 
     fs.copyFileSync("template/icon.png", `${DOCSET_NAME}/icon.png`);
     fs.copyFileSync("template/icon@2x.png", `${DOCSET_NAME}/icon@2x.png`);
@@ -67,12 +69,6 @@ async function main () {
   });
   console.log(`Waiting for page load...`);
   dom.window.addEventListener('load', async (event) => {
-    let version = dom.window.zigAnalysis.params.zigVersion;
-    if (!/^\d+\.\d+\.\d+$/.test(version)) {
-      version += " (master)";
-    }
-    console.log(`Loaded ${version}`);
-
     const doc = dom.window.document;
     const thisId = index(seq, "Guide", doc.querySelector("h1").textContent, GUIDE_PATH, 0);  // add to db
 
@@ -85,21 +81,12 @@ async function main () {
     // extract stylesheet to file to save space
     const styleEl = doc.querySelector("style");
     if (!DRY_RUN) {
-      fs.mkdirSync(`${DOCSET_NAME}/Contents/Resources/Documents/`, {recursive: true});
-      fs.writeFileSync(`${DOCSET_NAME}/Contents/Resources/Documents/style.css`, styleEl.innerHTML
-      + `
-      .dashAnchor {
-        display: block;
-        text-align: inherit;
-        padding: 0;
-        margin: 0;
-        text-decoration: none;
-      }
-      `);  // added to prevent anchors messing up the page styling
+      fs.mkdirSync(DOCSET_PATH, {recursive: true});
+      fs.writeFileSync(`${DOCSET_PATH}style.css`, styleEl.innerHTML);  // added to prevent anchors messing up the page styling
     }
     styleEl.remove();
 
-    const titleEl = tdoc.querySelector("title");
+    const titleEl = doc.querySelector("title");
     titleEl.innerHTML = "Zig Language Reference";
     const mainEl = doc.querySelector("#contents");
 
@@ -110,7 +97,7 @@ async function main () {
       if (headText.startsWith("@")) {  // builtin
         index(seq, headText, "Builtin", filepath, thisId);
         toc(doc, h, "Builtin", headText);
-      } else if (headText.lower() == headText) {  // probably language keyword eg for, while, return
+      } else if (headText.toLowerCase() == headText) {  // probably language keyword eg for, while, return
         index(seq, headText, "Keyword", filepath, thisId);
         toc(doc, h, "Keyword", headText);
       } else {  // guides
@@ -120,6 +107,24 @@ async function main () {
     }
 
     // TODO: Specially add primitive types
+    console.log("PIMITIVES");
+    let primTblEl;
+    for (const t of mainEl.querySelectorAll("table caption")) {
+      if (t.textContent == "Primitive Types") primTblEl = t.parentElement;
+    }
+    if (!primTblEl) console.log("'Primitive Types' table not found.");
+    else {
+      const label = "#Primitive-Types";
+      const filepath = GUIDE_PATH + label;  // Assuming this won't change
+      console.assert(doc.querySelector(label) !== undefined);
+      for (const th of primTblEl.querySelectorAll("tbody th")) {
+        index(seq, th.textContent, "Type", filepath);
+        toc(doc, th.firstElementChild, "Type", th.textContent);
+      }
+    }
+
+    const filestr = dom.serialize();
+    await fs.promises.writeFile(DOCSET_PATH + GUIDE_PATH, filestr);
   });
 }
 
