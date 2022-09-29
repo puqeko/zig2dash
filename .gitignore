@@ -1,7 +1,9 @@
 # Extra
 
-zigstd.docset
+*.docset
 websrc
+.DS_Store
+log.txt
 
 # Based on https://raw.githubusercontent.com/github/gitignore/main/Node.gitignore
 
