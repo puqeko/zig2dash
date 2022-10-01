@@ -9,7 +9,7 @@ const BASE_URL = "https://ziglang.org/documentation/master";
 const STD_PATH = "https://ziglang.org/documentation/master/std";
 const GUIDE_PATH = "Zig\ Language\ Reference.html";
 // TODO cross link to std lib
-const DOCSET_NAME = "zigstd-guide.docset";
+const DOCSET_NAME = "zig-guide.docset";
 const DOCSET_PATH = DOCSET_NAME + "/Contents/Resources/Documents/";
 const DRY_RUN = false;
 
@@ -128,7 +128,7 @@ async function main () {
     }
 
     // const filestr = dom.serialize();
-    const filestr = htmlMinify.minify(temp.serialize(), htmlMinOpts);
+    const filestr = htmlMinify.minify(dom.serialize(), htmlMinOpts);
     await fs.promises.writeFile(DOCSET_PATH + GUIDE_PATH, filestr);
   });
 }

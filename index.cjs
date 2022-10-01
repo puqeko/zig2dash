@@ -1,5 +1,6 @@
 // Make a docset for the Zig Standard Lib accroding to https://kapeli.com/docsets
-const { JSDOM } = require("jsdom");
+const jsdom = require("jsdom");
+const { JSDOM, VirtualConsole } = jsdom;
 const fs = require("fs");
 const { Sequelize } = require('sequelize');
 const htmlMinify = require('html-minifier');
@@ -21,25 +22,34 @@ const htmlMinOpts = {
   collapseWhitespace: true
 };
 
+function clearLog() {
+  process.stdout.clearLine();
+  process.stdout.cursorTo(0);
+}
+
+function logUpdate(...args) {
+  clearLog();
+  const [cols, rows] = process.stdout.getWindowSize()
+  process.stdout.write(args.join(" ").slice(0, cols));
+}
+
 // take a hash and convert to name
 // eg #root;Array.thing  =>  std.Array.thing
-function toName(key, root) {
-  if (!root) throw "Specify root arg";
-  if (!key) return root;
+function toName(key, pkgRootName) {
+  if (!pkgRootName) throw Error("please pass pkgRootName when using toName");
+  if (!key) return pkgRootName;
   let s = key;
   if (s.startsWith("#")) s = s.slice(1);
   if (s.endsWith(";")) s = s.slice(0, -1);
   s = s.replace(";", ".");
-  if (s.startsWith("root")) s = s.replace("root", root);
+  if (s.startsWith("root")) {
+    s = s.replace("root", pkgRootName);
+  }
   return s;
 }
 
 function toPath(name) {
   return name.replaceAll(".", "/") + ".html";
-  // let n = name.split(".");
-  // let s = n.slice(0, -1).join('/');
-  // if (s) s += '/';
-  // return s + name + ".html";  // n.slice(-2).join(".")
 }
 
 function getFullUrl(a) {
@@ -59,7 +69,6 @@ function getFullUrl(a) {
 }
 
 async function index(seq, name, type, filepath) {
-  console.log(type, name, filepath);
   const CMD = "INSERT OR IGNORE INTO searchIndex(name, type, path) VALUES ";
   // this description is displayed next to the result and distingushes similar results
   const pathStr = filepath + `<dash_entry_menuDescription=${encodeURIComponent(name)}>`;
@@ -78,22 +87,71 @@ async function onFinishedFirstLoad(dom, seq, _) {
     "Error": "#sectErrSets",
   };
 
-  const root = dom.window.zigAnalysis.rootPkgName;
-  let cur = `#${dom.window.zigAnalysis.params.rootName}`;
-  let next = [];
-  let seen = new Map();
-  let done = new Set();
-  seen.set(cur, "Library");
+  let seen = new Map();  // keep track of hashes for which we know the type
+
+  // find packages
+  const doc = dom.window.document;
+  let pkgsUl = doc.querySelector(".packages");
+  
+  let libs = [];
+  if (!pkgsUl) throw Error("could not find package list");
+  for (const pkgLi of pkgsUl.children) {
+    const a = pkgLi.querySelector('a');
+    const name = a.textContent;
+    const hash = a.hash;
+    libs.push({hash, name});
+    seen.set(hash, "Library");
+  }
+  console.log(`Discovered ${libs.length} packages: ${libs.map((a) => a.name).join(", ")}`);
+  if (DRY_RUN) console.log("WARNING: is dry run");
+
+  // strip document: remove search bar and inputs
+  // doc.querySelector("#searchPlaceholder").remove();
+  // doc.querySelector("label").remove();
+  doc.querySelector(".sidebar").remove();
+  doc.querySelector(".flex-filler").remove();
+  // doc.querySelector(".banner").remove();  // might be good to show 'beta' banner
+  doc.querySelector("#status").remove();
+  doc.querySelector("link").remove();  // icon
+  for (const inp of doc.querySelectorAll("input")) {
+    inp.remove();
+  }
+
+  // extract stylesheet to file to save space
+  const styleEl = doc.querySelector("style");
+  if (!DRY_RUN) {
+    fs.mkdirSync(DOCSET_PATH, {recursive: true});
+    fs.writeFileSync(`${DOCSET_PATH}/style.css`, styleEl.innerHTML);
+  }
+  styleEl.remove();
+
+  let nProcessing = 0;
+  let next = [];  // hashes to be processed
+  let pkgRootName;
+  let cur;
+  {
+    const {hash, name} = libs.pop();
+    pkgRootName = name;
+    cur = hash;
+  }
 
   // create copy of dom, parse results, output to file, populate db
   // follow links, add to stack, process next on stack until empty
   async function onRender(_) {
-    const name = toName(cur, root);
+    const name = toName(cur, pkgRootName);
     const filepath = toPath(name);
+    const thisType = seen.get(cur);
+    if (thisType == "Library") {
+      clearLog();
+      console.log(`Traversing '${pkgRootName}'...`);
+    }
+
+    nProcessing += 1;
+    logUpdate(`[${nProcessing}]`, thisType, name, filepath);
 
     let ip = undefined;
     if (!DRY_RUN)
-      ip = index(seq, name, seen.get(cur), filepath);  // insert into db
+      ip = index(seq, name, thisType, filepath);  // insert into db
     let mp = undefined;
     if (!DRY_RUN && filepath.includes("/"))  // create empty dir if it doesn't exist
        mp = fs.promises.mkdir(DOCSET_PATH + filepath.slice(0, filepath.lastIndexOf("/")), {recursive: true});
@@ -102,7 +160,7 @@ async function onFinishedFirstLoad(dom, seq, _) {
     const tdoc = temp.window.document;
 
     // remove hidden sections
-    for (const hid of temp.window.document.querySelectorAll(".hidden")) hid.remove();
+    for (const hid of tdoc.querySelectorAll(".hidden")) hid.remove();
 
     const allLinks = new Set(tdoc.querySelectorAll("a"));
     const linkSets = {};
@@ -130,20 +188,29 @@ async function onFinishedFirstLoad(dom, seq, _) {
           }
         }
       }
-      if (is_indexed) a.href = dotsToRoot + toPath(toName(a.hash, root));  // convert to relative docset path
+      if (is_indexed) a.href = dotsToRoot + toPath(toName(a.hash, pkgRootName));  // convert to relative docset path
       else a.href = getFullUrl(a);  // ensure full web address linked since local file will not exist
     }
 
     // start rendering next page, okay since we made copy of this dom context
-    done.add(cur);
     let thisCur = cur;
-    while (next.length > 0) {
+    let shouldRedraw = false;
+    if (next.length > 0) {
       cur = next.pop();
-      if (!done.has(cur)) {
-        dom.window.location.hash = cur;
-        dom.window.requestAnimationFrame(onRender);  // wait for redraw
-        break;
-      }
+      shouldRedraw = true;
+    }
+    // check for more libraries
+    else if (next.length == 0 && libs.length > 0) {
+      const {hash, name} = libs.pop();
+      pkgRootName = name;
+      cur = hash;
+      shouldRedraw = true;
+    } else {
+      console.log("Done");
+    }
+    if (shouldRedraw) {
+      dom.window.location.hash = cur;
+      dom.window.requestAnimationFrame(onRender);  // wait for redraw
     }
     
     // link stylesheet at root
@@ -160,7 +227,7 @@ async function onFinishedFirstLoad(dom, seq, _) {
     // mark sections
     for (const h2 of tdoc.querySelectorAll("section.docs h2")) {
       const markEl = tdoc.createElement("a");
-      markEl.name = `//apple_ref/cpp/Section/${encodeURIComponent(h2.textContent)}`;
+      markEl.setAttribute("name", `//apple_ref/cpp/Section/${encodeURIComponent(h2.textContent)}`);
       markEl.className = "dashAnchor";
       h2.parentElement.insertBefore(markEl, h2);
     }
@@ -168,9 +235,9 @@ async function onFinishedFirstLoad(dom, seq, _) {
     // mark function signatures
     const lfn = tdoc.querySelector("#listFns");
     if (lfn) for (const lf of lfn.children) {
-      const fnameEl = lf.querySelector(".fnSignature .tok-fn");
+      const fnameEl = lf.querySelector("#listFns .tok-fn");
       const markEl = tdoc.createElement("a");
-      markEl.name = `//apple_ref/cpp/Function/${encodeURIComponent(fnameEl.textContent)}`;
+      markEl.setAttribute("name", `//apple_ref/cpp/Function/${encodeURIComponent(fnameEl.textContent)}`);
       markEl.className = "dashAnchor";
       lf.insertBefore(markEl, lf.firstElementChild);
     }
@@ -184,7 +251,7 @@ async function onFinishedFirstLoad(dom, seq, _) {
       if (mp !== undefined) await mp;  // mkdir
       await fs.promises.writeFile(DOCSET_PATH + filepath, filestr);
       if (ip !== undefined) await ip;  // db entry
-    } else console.log(toName(thisCur, root), seen.get(thisCur), filepath);
+    }
   }
 
   await onRender();
@@ -209,11 +276,14 @@ async function main () {
     fs.copyFileSync("templates/info.plist", `${DOCSET_NAME}/Contents/info.plist`);
   }
 
+  const virtualConsole = new VirtualConsole();  // todo output to file
+
   console.log(`Featching ${BASE_URL}`);
   const dom = await JSDOM.fromURL(BASE_URL, {
     runScripts: "dangerously",
     resources: "usable",
-    pretendToBeVisual: true
+    pretendToBeVisual: true,
+    virtualConsole: virtualConsole
   });
   console.log(`Waiting for page load...`);
   dom.window.addEventListener('load', async (event) => {
@@ -221,31 +291,13 @@ async function main () {
     if (!/^\d+\.\d+\.\d+$/.test(version)) {
       version += " (master)";
     }
-    console.log(`Loaded ${version}`);
-
-    // strip document: remove search bar and inputs
-    const doc = dom.window.document;
-    doc.querySelector("#searchPlaceholder").remove();
-    doc.querySelector("label").remove();
-    doc.querySelector(".sidebar").remove();
-    doc.querySelector(".flex-filler").remove();
-    // doc.querySelector(".banner").remove();  // might be good to show 'beta' banner
-    doc.querySelector("#status").remove();
-    doc.querySelector("link").remove();  // icon
-    for (const inp of doc.querySelectorAll("input")) {
-      inp.remove();
-    }
-
-    // extract stylesheet to file to save space
-    const styleEl = doc.querySelector("style");
-    if (!DRY_RUN) {
-      fs.mkdirSync(DOCSET_PATH, {recursive: true});
-      fs.writeFileSync(`${DOCSET_PATH}/style.css`, styleEl.innerHTML);
-    }
-    styleEl.remove();
-
+    console.log(`Loaded version: ${version}`);
     onFinishedFirstLoad(dom, seq, event);
   });
 }
 
+// process.on('error', () => {});
 main();
+
+// select version
+// select overwrite

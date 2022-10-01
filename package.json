@@ -1,17 +1,17 @@
 {
   "name": "zig2dash",
-  "module": "index.js",
+  "module": "gen.cjs",
   "type": "module",
-  "devDependencies": {
-    "bun-types": "^0.1.0"
-  },
+  "license": "MIT",
   "dependencies": {
-    "bun-utilities": "^0.2.1",
-    "child_process": "^1.0.2",
+    "fs-extra": "^10.1.0",
+    "got": "^12.5.1",
     "html-minifier": "^4.0.0",
+    "inquirer": "^9.1.2",
     "jsdom": "^20.0.0",
+    "parse5": "^7.1.1",
     "sequelize": "^6.23.1",
     "sqlite3": "^5.1.1",
-    "vm": "^0.1.0"
+    "winston": "^3.8.2"
   }
 }
