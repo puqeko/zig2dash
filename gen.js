@@ -1,9 +1,6 @@
 import fs from 'fs-extra';
 import { Sequelize } from 'sequelize';
 import inq from 'inquirer';
-import got from 'got';
-import jsdom from 'jsdom';
-import { parse } from 'parse5';
 
 const log = console.log;
 const err = console.error;
@@ -18,42 +15,15 @@ const db = new Sequelize({
   storage: `${DOC_NAME}/Contents/Resources/docSet.dsidx`
 });
 
-const _PROMS = [];  // keep paralell promises (start) and await them (awaitAll)
+const _PROMS = [];  // keep paralell promises (start) and await them (awaitAll) Warning: globally scoped
 const start = (...args) => _PROMS.push(...args);
-const awaitAll = async () => {
-  const res = [];
-  for (const p of _PROMS) res.push(await p);
-  return res;
-};
+const awaitAll = async () => {for (const p of _PROMS) await p;};
 
-
-function findTags(node, tag) {
-  let res = [];
-  if (node.childNodes) {
-    for (const n of node.childNodes) {
-      if (n.tagName == tag) res.push(n);
-      else res = res.concat(findTags(n, tag));
-    }
-  }
-  return res;
-}
 
 async function doStd(url) {
   log("Fetching", url);
-  const resp = await got(url).catch(() => err("Could not connect to", url));
-  if (resp.statusCode != 200) err("Bad responce from", url);
-  await fs.mkdir("cache", {recursive: true});
-  for (const s of findTags(parse(resp.body), "script")) {
-    let src;
-    for (const {name, value} of s.attrs) if (name == "src") src = value;
-    log("Download", src);
-    start(got(url + src)
-      .catch(() => err("Could not get", src))
-      .then((res) => {
-        fs.writeFileSync("cache/" + src, res.body, {overwrite: true})
-      }));
-  }
-  awaitAll();
+  // const dom = start(JSDOM.fromURL(url));
+  // start workers
 }
 
 async function doLangRef(url) {
