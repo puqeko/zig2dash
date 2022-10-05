@@ -6,7 +6,7 @@ const { Sequelize } = require('sequelize');
 const htmlMinify = require('html-minifier');
 
 const BASE_URL = "https://ziglang.org/documentation/master/std";
-const DOCSET_NAME = "zig-std.docset"
+const DOCSET_NAME = "zig-std-old.docset"
 const DOCSET_PATH = DOCSET_NAME + "/Contents/Resources/Documents/";
 const DRY_RUN = false;
 
@@ -171,6 +171,7 @@ async function onFinishedFirstLoad(dom, seq, _) {
     for (const a of allLinks) {
       // webapp uses #root;Type.func format to navigate
       // only index links to this page
+      if (a.origin == '' || a.origin == "null") console.log(a.hash, `'${a.origin}'`);
       let is_suitable = a.href.trim() != "" && a.hash.length > 0 && (
         (a.origin == '' && a.pathname == '') ||
         (a.origin == "null" && a.pathname == "blank")
@@ -242,7 +243,7 @@ async function onFinishedFirstLoad(dom, seq, _) {
       lf.insertBefore(markEl, lf.firstElementChild);
     }
 
-    const titleEL = tdoc.querySelector("title");
+    const titleEL = tdoc.querySelector("title");  // shows in full text search
     titleEL.innerHTML = name.split(".").at(-1);
 
     if (!DRY_RUN) {
@@ -268,12 +269,11 @@ async function main () {
     fs.rmSync(DOCSET_NAME, {recursive: true, force: true});
     await seq.query(`CREATE TABLE searchIndex(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, type TEXT, path TEXT, parent INTEGER);`);
     await seq.query(`CREATE UNIQUE INDEX anchor ON searchIndex (name, type, path, parent);`);
-
-    fs.copyFileSync("templates/icon.png", `${DOCSET_NAME}/icon.png`);
-    fs.copyFileSync("templates/icon@2x.png", `${DOCSET_NAME}/icon@2x.png`);
-
+    
     fs.mkdirSync(`${DOCSET_NAME}/Contents/`, {recursive: true});
-    fs.copyFileSync("templates/info.plist", `${DOCSET_NAME}/Contents/info.plist`);
+    fs.copyFileSync("template/icon.png", `${DOCSET_NAME}/icon.png`);
+    fs.copyFileSync("template/icon@2x.png", `${DOCSET_NAME}/icon@2x.png`);
+    fs.copyFileSync("template/Contents/info.plist", `${DOCSET_NAME}/Contents/info.plist`);
   }
 
   const virtualConsole = new VirtualConsole();  // todo output to file
