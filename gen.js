@@ -1,12 +1,6 @@
-import os from 'os';
-import { Worker } from "worker_threads";
 import fs from 'fs-extra';
-import { Sequelize } from 'sequelize';
 import inq from 'inquirer';
-import { dirname } from 'path';
-import { fileURLToPath } from 'url';
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
+import {assignIdleWorker, initWorkers, workerStats, __dirname} from './workerutils.js'
 
 const log = console.log;
 const err = console.error;
@@ -15,75 +9,90 @@ const BASE_URL = "https://ziglang.org/documentation/";
 const DOC_NAME = "zig.docset"
 const DOC_PATH = DOC_NAME + "/Contents/Resources/Documents/";
 
-const db = new Sequelize({
-  dialect: 'sqlite',
-  logging: false,
-  storage: `${DOC_NAME}/Contents/Resources/docSet.dsidx`
-});
-
-const toName = (key, rootPkgName) => {
-  if (!rootPkgName) throw Error("please pass pkgRootName when using toName");
-  if (!key) return rootPkgName;
-  let s = key;
-  if (s.startsWith("#")) s = s.slice(1);
-  if (s.endsWith(";")) s = s.slice(0, -1);
-  s = s.replace(";", ".");
-  if (s.startsWith("root"))
-    s = s.replace("root", rootPkgName);
-  return s;
+const PACK_SIZE = 25;
+let packs = [];  // groups of PACK_SIZE for processing
+const divide = () => {
+  const last = packs.pop();
+  const div = [[], []];
+  for (let i = 0; i < last.length; i++) div[i%2].push(last[i]);
+  packs.push(...div);
 };
 
-const workers = [];
-const finished = () => {
-  const promises = [];
-  for (const worker of workers) promises.push(worker.terminate());
-  Promise.all(promises);
-  log("Done!");
+const seen = new Set();
+const libs = [];
+let nProcessed = 0;
+const incrDisplayCount = (i) => {
+  nProcessed += i;
+  process.stdout.clearLine();
+  process.stdout.cursorTo(0);
+  process.stdout.write(`[${nProcessed}]`);
 };
 
-const processed = new Set();
-const pending = [];
-const processing = new Set();
-let prev = BigInt(0);
-const receiveWorkerMessage = async (worker, msgData) => {
-  const {msg} = msgData;
-  if (msg == "complete") {
-    if (msgData.data) {;
-      processing.delete(msgData.data.hash);
-      process.stdout.clearLine();
-      process.stdout.cursorTo(0);
-      process.stdout.write(`[${processed.size}] ` + msgData.data.name);
-    }
-    while (pending.length > 0) {
-      const {hash, rootName} = pending.pop();
-      if (!processed.has(hash)) {
-        processed.add(hash);
-        processing.add(hash);
-        worker.postMessage({thisHash: hash, rootName});
-        return;
+const allocate = () => {
+  if (libs.length > 0) {
+    return {lib: libs.pop()};
+  } if (packs.length > 0) {
+    const pack = packs.at(0);  // take from front
+    packs = packs.slice(1);
+    return {pack};
+  }
+};
+const doStd = (baseUrl) => {
+  initWorkers(__dirname + "/stdworker.js", {
+    nWorkers: 1,
+    initData: {baseUrl, DOC_PATH},
+    onInit: (o) => {
+      const {msgData} = o;
+      for (const lib of msgData) {
+        if (seen.has(lib.hash)) continue;
+        seen.add(lib.hash);
+        libs.push(lib);
+      }
+    },
+    onIdle: (o) => {
+      const next = allocate();
+      if (next) o.assign(next);
+      else askRunningWorkers();
+      if (!o.isInit) incrDisplayCount(o.msgData);
+
+      let idleCount = 0;
+      for (const ws of workerStats()) if (ws.status == "idle") idleCount += 1;
+      if (idleCount == workerStats().length) log("\nDone");
+    },
+    onReply: (o) => {
+      const {msgData} = o;
+      if (packs.length == 0) packs.push([]);
+      let nfull = packs.map((p) => p.length >= PACK_SIZE).reduce((a, b) => a+b);
+      if (nfull == packs.length) {
+        divide(packs);
+        if (nfull > 0) nfull -= 1;
+      }
+      let i = 0;
+      for (const f of msgData) {
+        if (seen.has(f.hash)) continue;
+        seen.add(f.hash);
+        packs[nfull + (i % (packs.length - nfull))].push(f);
+        if (packs.at(-1).length >= PACK_SIZE) {
+          nfull += 1;
+          if (nfull == packs.length) {
+            divide(packs);
+            if (nfull > 0) nfull -= 1;
+          }
+        }
+        i += 1;
+      }
+
+      let idleCount = 0;
+      for (const ws of workerStats()) if (ws.status == "idle") idleCount += 1;
+      if (idleCount == workerStats().length) log("\nDone");
+      while (idleCount > 0) {
+        const next = allocate();
+        if (next) assignIdleWorker(next);
+        else break;
+        idleCount--;
       }
     }
-    if (processing.size() == 0)
-      finished();
-  } else if (msg == "add") {
-    if (!msgData.data) throw Error("'add' requires a 'data' object of {type, hash}");
-    const {type, hash, rootFrom} = msgData.data;
-    if (processed.has(hash)) return;
-    if (type == "Library") pending.push({hash, rootName: rootFrom});
-    else pending.push({hash, rootName: toName(hash, rootFrom).split('.').at(0)});
-    // todo add to index
-    // todo if some
-  } else throw Error("unexpected message received");
-};
-
-const doStd = (baseUrl) => {
-  const nWorkers = 1; // os.cpus().length - 1;
-  log("Workers:", nWorkers);
-  for (let i = 0; i < nWorkers; i++) {
-    let worker = new Worker(__dirname + "/stdworker.js", {workerData: {id: i, baseUrl, DOC_PATH}});
-    worker.on("message", receiveWorkerMessage.bind(receiveWorkerMessage, worker));
-    workers.push(worker);
-  }
+  });
 }
 
 doStd("https://ziglang.org/documentation/master/std/");
