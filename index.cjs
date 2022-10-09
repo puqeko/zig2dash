@@ -5,7 +5,7 @@ const fs = require("fs");
 const { Sequelize } = require('sequelize');
 const htmlMinify = require('html-minifier');
 
-const BASE_URL = "https://ziglang.org/documentation/master/std";
+const BASE_URL = "https://ziglang.org/documentation/0.9.1/std";
 const DOCSET_NAME = "zig-std-old.docset"
 const DOCSET_PATH = DOCSET_NAME + "/Contents/Resources/Documents/";
 const DRY_RUN = false;

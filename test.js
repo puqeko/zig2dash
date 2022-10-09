@@ -4,12 +4,7 @@ const packs = [];
 const msgData = [];
 for (let a = 0; a < 1000; a++) msgData.push(a);
 
-const divide = () => {
-  const last = packs.pop();
-  const div = [[], []];
-  for (let i = 0; i < last.length; i++) div[i%2].push(last[i]);
-  packs.push(...div);
-};
+
 
 let i = 0;
 if (packs.length == 0) packs.push([]);

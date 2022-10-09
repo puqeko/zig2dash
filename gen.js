@@ -1,6 +1,6 @@
 import fs from 'fs-extra';
 import inq from 'inquirer';
-import {assignIdleWorker, initWorkers, workerStats, __dirname} from './workerutils.js'
+import {assignIdleWorker, initWorkers, workerStats, stopWorkers, __dirname} from './workerutils.js'
 
 const log = console.log;
 const err = console.error;
@@ -20,12 +20,14 @@ const divide = () => {
 
 const seen = new Set();
 const libs = [];
-let nProcessed = 0;
-const incrDisplayCount = (i) => {
-  nProcessed += i;
+const displayCounts = () => {
   process.stdout.clearLine();
   process.stdout.cursorTo(0);
-  process.stdout.write(`[${nProcessed}]`);
+  let pn = 0;
+  for (const p of packs) pn += p.length;
+  let idleCount = 0;
+  for (const ws of workerStats()) if (ws.status == "idle") idleCount += 1;
+  process.stdout.write(`Seen: ${seen.size} Have: ${pn + libs.length} Idle: ${idleCount}`);
 };
 
 const allocate = () => {
@@ -39,8 +41,8 @@ const allocate = () => {
 };
 const doStd = (baseUrl) => {
   initWorkers(__dirname + "/stdworker.js", {
-    nWorkers: 1,
-    initData: {baseUrl, DOC_PATH},
+    nWorkers: 3,
+    initData: {baseUrl, DOC_NAME},
     onInit: (o) => {
       const {msgData} = o;
       for (const lib of msgData) {
@@ -52,14 +54,22 @@ const doStd = (baseUrl) => {
     onIdle: (o) => {
       const next = allocate();
       if (next) o.assign(next);
-      else askRunningWorkers();
-      if (!o.isInit) incrDisplayCount(o.msgData);
 
       let idleCount = 0;
       for (const ws of workerStats()) if (ws.status == "idle") idleCount += 1;
-      if (idleCount == workerStats().length) log("\nDone");
+      if (idleCount == workerStats().length) {
+        stopWorkers();
+        log("\nDone");
+      }
+      while (idleCount > 0) {
+        const next = allocate();
+        if (next) assignIdleWorker(next);
+        else break;
+        idleCount--;
+      }
+      displayCounts();
     },
-    onReply: (o) => {
+    onData: (o) => {
       const {msgData} = o;
       if (packs.length == 0) packs.push([]);
       let nfull = packs.map((p) => p.length >= PACK_SIZE).reduce((a, b) => a+b);
@@ -84,18 +94,22 @@ const doStd = (baseUrl) => {
 
       let idleCount = 0;
       for (const ws of workerStats()) if (ws.status == "idle") idleCount += 1;
-      if (idleCount == workerStats().length) log("\nDone");
+      if (idleCount == workerStats().length) {
+        stopWorkers();
+        log("\nDone");
+      }
       while (idleCount > 0) {
         const next = allocate();
         if (next) assignIdleWorker(next);
         else break;
         idleCount--;
       }
+      displayCounts();
     }
   });
 }
 
-doStd("https://ziglang.org/documentation/master/std/");
+doStd("https://ziglang.org/documentation/0.9.1/std/");
 
 // TODO: try sending batches back instead
 // improve ready checker for multi worker

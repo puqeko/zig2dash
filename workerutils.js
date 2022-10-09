@@ -41,24 +41,15 @@ const receiver = (id, opts, msg) => {
         const data = opts.onAsk({msgData: msg.data, jobData: info.jobData, isInit});
         workerState.worker.postMessage({tag: 'reply', data});
       } else throw Error(`worker ${id} sent an ask but there is no onAsk handler specified`);
-      break;
-    case "reply":
-      if (opts && opts.onReply) opts.onReply({msgData: msg.data, jobData: info.jobData, isInit});
-      break;
     default:
       throw Error(`unexpected message tag '${msg.tag}' from worker ${id}`);
   }
 };
 
-export const askRunningWorkers = () => {
-  for (const ws of pool) {
-    if (ws.info.status == "working") ws.worker.postMessage({tag: "ask"});
-  }
-};
 export const workerStats = () => {
   const res = [];
-  for (const ws of pool) {
-    const {status, nCompleted} = ws.info;
+  for (const workerState of pool) {
+    const {status, nCompleted} = workerState.info;
     res.push({status, nCompleted});
   }
   return res;
