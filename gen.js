@@ -45,7 +45,7 @@ const main = async () => {
     type: "list",
     name: "ver",
     message: `Version?`,
-    choices: ["master", "0.9.1"]
+    choices: ["0.9.1", "master"]
   })).ver;
   const langRefUrl = BASE_URL.href + version + "/";
   const todo = (await inq.prompt({
