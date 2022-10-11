@@ -1,3 +1,5 @@
+// Make a docset for the Zig Standard Library accroding to https://kapeli.com/docsets
+
 import process from 'process';
 import fs from 'fs-extra';
 import { JSDOM, VirtualConsole, ResourceLoader } from 'jsdom';
