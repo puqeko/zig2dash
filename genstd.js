@@ -85,10 +85,24 @@ async function index(db, name, type, filepath) {
   await db.query(CMD + `('${name}', '${type}', '${path}');`);  // add to table
 }
 
+const newerThanOrEqual = (ver, ref) => {
+  const t = /^\d+\.\d+(\.\d+)?$/;  // accept 0.9 or 0.9.1 format
+  if (!t.test(ref)) return true;  // else development build always 'newer'
+  let a = ver.split(".").map((a) => parseInt(a));
+  let b = ref.split(".").map((b) => parseInt(b));
+  if (a.length < 3) a.push(0);
+  if (b.length < 3) b.push(0);
+  for (let i = 0; i < 3; i++) {
+    if (a[i] == b[i]) continue;
+    return a[i] > b[i];
+  }
+  return true;
+};
+
 let nEmpty = 0;
 // trigged by the parent, process the next hash link we are assigned and send back
 // any hash links that we shouldFollow
-const render = async (baseUrl, docPath, db, els, sects, ignoreTypes, next) => {
+const render = async (baseUrl, docPath, db, els, sects, ignoreTypes, version, next) => {
   const {thisType, thisHash, parentName} = next;
   const rootName = parentName.split('.').at(0);
   const {mainEl, titleEl, linkEl} = els;
@@ -138,10 +152,10 @@ const render = async (baseUrl, docPath, db, els, sects, ignoreTypes, next) => {
     const anchorEl = copy.window.document.createElement("a");
     anchorEl.setAttribute("name", `//apple_ref/cpp/Function/${encodeURIComponent(fnameEl.textContent)}`);
     anchorEl.className = "dashAnchor";
-    fnameEl.parentElement.insertBefore(anchorEl, fnameEl.parentElement.firstChild);
-    // TODO: differently from master?
+    if (newerThanOrEqual(version, "0.10")) lf.insertBefore(anchorEl, lf.firstElementChild);
+    else fnameEl.parentElement.insertBefore(anchorEl, fnameEl.parentElement.firstChild);
   }
-  
+
   // online redirect marker
   const orEl = copy.window.document.createComment(` Online page at ${baseUrl.href + thisHash} `);
   const htmlEl = copy.window.document.querySelector("html");
@@ -282,7 +296,7 @@ export const generate = async (baseUrl, docName) => {
   let nProcessed = 0;
   let next = await startNextRender();
   while (next) {
-    const pnext = await render(baseUrl, docPath, db, els, sects, ignoreTypes, next);
+    const pnext = await render(baseUrl, docPath, db, els, sects, ignoreTypes, version, next);
     nProcessed += 1;
     process.stdout.clearLine();
     process.stdout.cursorTo(0);
