@@ -3,6 +3,9 @@
   "module": "gen.js",
   "type": "module",
   "license": "MIT",
+  "scripts": {
+    "gen" : "node index.js"
+  },
   "dependencies": {
     "fs-extra": "^10.1.0",
     "html-minifier": "^4.0.0",

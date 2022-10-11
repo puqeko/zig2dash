@@ -1,26 +1,27 @@
-# zig2dash
+# Zig 2 Dash
 
-Zig presents std lib docs via webapp. A json dump is exported during compilation. The page loads this dump then traverses the data while navigating the docs. This is terrible for Dash, which requires a docset (indexed set of html pages). Linking to web app would cause too much delay showing each page.
+Zig presents its Standard Library docs via a dynamic webapp which is unsualbe in static documentation system like Dash. We must generate a static .docset file from it.
 
-The json dump requries knowledge of Zig Intermediate Representation. Would require re-writing main.js to produce static output which is non trivial.
+Writing a generator that uses the json dump included with the page requires understanding of Zig Intermediate Representation I don't have. Also, given the project is under heavy development any such script would likely break.
 
-Solution: load the webapp via jsdom, traverse each hash and export the generated html as a page, replacing links as needed. Allows for changes to zig autodoc (which is experimental) without knowing about ZIR.
-
-Notes:
-- `websrc` directory contains files (index, main, data) pulled from https://ziglang.org/documentation/master/std/.
+Work around: load the webapp from ziglang.org via jsdom, traverse each hashlink, wait for the next animation frame, then export the generated html as a page, replacing links as needed. Allows for changes to zig autodoc (which is experimental) without knowing about ZIR. It's slow but seems to do the job.
 
 # Setup
 
 To install dependencies:
-
 ```bash
-bun install
+yarn install
+```
+or
+```bash
+npm install
 ```
 
 To run:
-
 ```bash
-bun run index.js
+yarn gen
 ```
-
-This project was created using `bun init` in bun v0.1.13. [Bun](https://bun.sh) is a fast all-in-one JavaScript runtime.
+or
+```bash
+node index.js
+```
