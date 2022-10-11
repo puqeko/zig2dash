@@ -76,18 +76,19 @@ const startNextRender = async () => {
 const idxTable = new Map();
 async function index(db, name, type, filepath) {
   if (!idxTable.has(type)) idxTable.set(type, 1);
-  idxTable.set(type, idxTable.get(type) + 1);
+  else idxTable.set(type, idxTable.get(type) + 1);
   const CMD = "INSERT OR IGNORE INTO searchIndex(name, type, path) VALUES ";
-  // this description is displayed next to the result and distingushes similar results
-  const pathStr = filepath + `<dash_entry_menuDescription=${encodeURIComponent(name)}>`;
-  const nameStr = name.split(".").at(-1);
-  await db.query(CMD + `('${nameStr}', '${type}', '${pathStr}');`);  // add to table
+  const shortName = name.split(".").at(-1);
+  let path = filepath;
+  path += `<dash_entry_name=${encodeURIComponent(shortName)}>`  // displayed in search results
+  path += `<dash_entry_menuDescription=${encodeURIComponent(name)}>`;  // displayed next to search result
+  await db.query(CMD + `('${name}', '${type}', '${path}');`);  // add to table
 }
 
 let nEmpty = 0;
 // trigged by the parent, process the next hash link we are assigned and send back
 // any hash links that we shouldFollow
-const render = async (baseUrl, docPath, db, els, sects, next) => {
+const render = async (baseUrl, docPath, db, els, sects, ignoreTypes, next) => {
   const {thisType, thisHash, parentName} = next;
   const rootName = parentName.split('.').at(0);
   const {mainEl, titleEl, linkEl} = els;
@@ -112,12 +113,14 @@ const render = async (baseUrl, docPath, db, els, sects, next) => {
     if (isHidden) anchorEl.className = "hidden";  // so dash doesn't register the anchor
     else anchorEl.className = "dashAnchor";
     for (const a of el.querySelectorAll("a")) {
-      const pname = toName(a.hash, rootName);
+      const cname = toName(a.hash, rootName);
       excluded.add(a);
       if (isHidden || a == anchorEl) continue;
       if (shouldFollow(baseUrl, a)) {
-        if (pname.startsWith(parentName)) toFollow.unshift({type, hash: a.hash, parentName: pname});
-        a.href = tryMakeRelative(dirpath, toPath(pname), dotsToRoot);
+        // don't index fields
+        if (cname.startsWith(name) && !ignoreTypes.includes(type))
+          toFollow.unshift({type, hash: a.hash, parentName: name});
+        a.href = tryMakeRelative(dirpath, toPath(cname), dotsToRoot);
       } else a.setAttribute("href", a.href);  // make sure no relative web urls
     }
   }
@@ -135,9 +138,10 @@ const render = async (baseUrl, docPath, db, els, sects, next) => {
     const anchorEl = copy.window.document.createElement("a");
     anchorEl.setAttribute("name", `//apple_ref/cpp/Function/${encodeURIComponent(fnameEl.textContent)}`);
     anchorEl.className = "dashAnchor";
-    lf.insertBefore(anchorEl, lf.firstElementChild);
+    fnameEl.parentElement.insertBefore(anchorEl, fnameEl.parentElement.firstChild);
+    // TODO: differently from master?
   }
-
+  
   // online redirect marker
   const orEl = copy.window.document.createComment(` Online page at ${baseUrl.href + thisHash} `);
   const htmlEl = copy.window.document.querySelector("html");
@@ -149,7 +153,10 @@ const render = async (baseUrl, docPath, db, els, sects, next) => {
   const docsEl = copy.window.document.querySelector(".docs");
   if (docsEl.children.length == 0) {
     nEmpty += 1;
-    docsEl.innerHTML = `Nothing documented yet. <a href='${baseUrl.href + thisHash}'>Try the website</a>.`;
+    const parentPath = tryMakeRelative(dirpath, toPath(parentName), dotsToRoot);
+    const parentPage = `Try the <a href='${parentPath}'>${parentName}</a> page or try `;
+    const webPage = `<a href='${baseUrl.href + thisHash}'>the website</a>.`;
+    docsEl.innerHTML = `Not avaliable yet. ` + parentPage + webPage;
   }
 
   const filestr = htmlMinify.minify(copy.serialize(), htmlMinOpts);
@@ -243,7 +250,10 @@ export const generate = async (baseUrl, docName) => {
     "Function": "sectFns",
     "Value": "sectValues",
     "Error": "sectErrSets",
+    "Field": "sectFields",
+    "Example": "fnExamples"
   };
+  const ignoreTypes = ["Field", "Example"];  // exclude from index but include in TOC and convert links
   for (const type in sects) {
     const el = doc.getElementById(sects[type]);
     const h2 = el.querySelector('h2');
@@ -254,7 +264,7 @@ export const generate = async (baseUrl, docName) => {
     sects[type] = {el, anchorEl};
   }
   const types = [];
-  for (const type in sects) types.push(type);
+  for (const type in sects) if (!ignoreTypes.includes(type)) types.push(type);
   log("Indexing types", types.join(", "));
 
   const mainEl = doc.querySelector(".docs");
@@ -272,7 +282,7 @@ export const generate = async (baseUrl, docName) => {
   let nProcessed = 0;
   let next = await startNextRender();
   while (next) {
-    const pnext = await render(baseUrl, docPath, db, els, sects, next);
+    const pnext = await render(baseUrl, docPath, db, els, sects, ignoreTypes, next);
     nProcessed += 1;
     process.stdout.clearLine();
     process.stdout.cursorTo(0);
@@ -285,7 +295,9 @@ export const generate = async (baseUrl, docName) => {
   const counts = [];
   for (const k of idxTable.keys()) {
     foundTypes.push(k.slice(0, 7));
-    counts.push(idxTable.get(k));
+    let s = idxTable.get(k).toString();
+    if (s.length == 1) s += ' ';  // fix table alignment
+    counts.push(s);
   }
   log(foundTypes.join("\t"));
   log(counts.join("\t"));

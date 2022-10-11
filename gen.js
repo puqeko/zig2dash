@@ -41,23 +41,26 @@ const main = async () => {
     await db.query(`CREATE UNIQUE INDEX anchor ON searchIndex (name, type, path);`);
   }
 
-  const langRefUrl = BASE_URL.href + (await inq.prompt({
+  const version = (await inq.prompt({
     type: "list",
     name: "ver",
     message: `Version?`,
     choices: ["master", "0.9.1"]
-  })).ver + "/";
+  })).ver;
+  const langRefUrl = BASE_URL.href + version + "/";
   const todo = (await inq.prompt({
     type: "checkbox",
     name: "res",
     message: `Will process`,
     choices: [
-      {name: "Zig Language Reference", checked: true},
-      {name: "Zig Standard Library", checked: true}]
+      {name: "Zig Standard Library", checked: true},
+      {name: "Zig Language Reference", checked: true}]
   })).res;
 
-  if (todo.includes("Zig Language Reference")) await genguide(langRefUrl, docName);
-  if (todo.includes("Zig Standard Library")) await genstd(langRefUrl + "std/", docName);
+  const p = [];
+  if (todo.includes("Zig Standard Library")) p.push(genstd(langRefUrl + "std/", docName));
+  if (todo.includes("Zig Language Reference")) p.push(genguide(langRefUrl, docName, version));
+  await Promise.all(p);
 };
 
 main();
