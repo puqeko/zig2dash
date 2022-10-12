@@ -4,7 +4,7 @@
   "type": "module",
   "license": "MIT",
   "scripts": {
-    "gen" : "node index.js"
+    "gen": "node index.js"
   },
   "dependencies": {
     "fs-extra": "^10.1.0",
