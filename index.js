@@ -58,10 +58,8 @@ const main = async () => {
       {name: "Zig Language Reference", checked: true}]
   })).res;
 
-  const p = [];
-  if (todo.includes("Zig Standard Library")) p.push(genstd(langRefUrl + "std/", docName));
-  if (todo.includes("Zig Language Reference")) p.push(genguide(langRefUrl, docName, version));
-  await Promise.all(p);
+  if (todo.includes("Zig Language Reference")) await genguide(langRefUrl, docName, version);
+  if (todo.includes("Zig Standard Library")) await genstd(langRefUrl + "std/", docName);
 };
 
 main();
