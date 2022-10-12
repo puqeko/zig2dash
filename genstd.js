@@ -302,7 +302,8 @@ export const generate = async (baseUrl, docName) => {
     nProcessed += 1;
     process.stdout.clearLine();
     process.stdout.cursorTo(0);
-    process.stdout.write(`[std] ${nProcessed} \t${nEmpty} \t` + toName(next.thisHash, next.parentName.split('.').at(0)).slice(0, process.stdout.columns || 60));
+    const ostr = `[std] ${nProcessed} \t${nEmpty} \t${toName(next.thisHash, next.parentName.split('.').at(0))}`
+    process.stdout.write(ostr.slice(0, process.stdout.columns || 60));
     next = pnext;
   }
   log();
