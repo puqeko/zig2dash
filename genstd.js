@@ -120,7 +120,7 @@ const render = async (baseUrl, docPath, db, els, sects, ignoreTypes, version, ne
   for (const a of dom.window.document.getElementById("listNav").querySelectorAll("a")) {
     excluded.add(a);  // would have already followed
     if (shouldFollow(baseUrl, a)) a.href = tryMakeRelative(dirpath, toPath(toName(a.hash, rootName)), dotsToRoot);
-    else a.setAttribute("href", a.href);  // make sure no relative web urls
+    else if (a.getAttribute("href")) a.setAttribute("href", a.href);  // make sure no relative web urls
   }
   
   for (const type in sects) {
@@ -137,10 +137,11 @@ const render = async (baseUrl, docPath, db, els, sects, ignoreTypes, version, ne
         if (cname.startsWith(name) && !ignoreTypes.includes(type))
           toFollow.unshift({type, hash: a.hash, parentName: name});
         a.href = tryMakeRelative(dirpath, toPath(cname), dotsToRoot);
-      } else a.setAttribute("href", a.href);  // make sure no relative web urls
+      } else if (a.getAttribute("href"))
+        a.setAttribute("href", a.href);  // make sure no relative web urls
     }
   }
-  for (const a of allDocLinks) if (!excluded.has(a))
+  for (const a of allDocLinks) if (a.getAttribute("href") && !excluded.has(a))
     a.setAttribute("href", a.href);  // no relative web urls
   const copy = new JSDOM(dom.serialize());
   const rendering = startNextRender();  // dom is hot until this is awaited, don't touch it
@@ -207,7 +208,8 @@ export const generate = async (baseUrl, docName) => {
   });
   log("Waiting for page load...");
   const doc = dom.window.document;
-  for (const a of doc.querySelectorAll("a")) a.setAttribute("href", a.href);  // no relative urls
+  for (const a of doc.querySelectorAll("a")) if (a.getAttribute("href"))
+    a.setAttribute("href", a.href);  // no relative urls
   await new Promise((resolve) => dom.window.addEventListener('load', resolve));
   let version = dom.window.zigAnalysis.params.zigVersion;
   if (!/^\d+\.\d+\.\d+$/.test(version)) version += " (master)";
