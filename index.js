@@ -24,7 +24,7 @@ const main = async () => {
       type: "list",
       name: "res",
       message: `Merge with existing '${docName}' or replace it?`,
-      choices: ["Merge", "Replace", "Canel"]
+      choices: ["Merge", "Replace", "Cancel"]
     })).res;
     if (res == "Cancel") return;
     if (res == "Replace") await fs.rm(docName, {recursive: true});
