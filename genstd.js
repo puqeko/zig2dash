@@ -267,9 +267,10 @@ export const generate = async (baseUrl, docName) => {
     "Value": "sectValues",
     "Error": "sectErrSets",
     "Field": "sectFields",
-    "Example": "fnExamples"
+    "Example": "fnExamples",
+    "Parameter": "sectParams",
   };
-  const ignoreTypes = ["Field", "Example"];  // exclude from index but include in TOC and convert links
+  const ignoreTypes = ["Field", "Example", "Parameter"];  // exclude from index but include in TOC and convert links
   for (const type in sects) {
     const el = doc.getElementById(sects[type]);
     const h2 = el.querySelector('h2');
