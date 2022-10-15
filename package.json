@@ -12,6 +12,7 @@
     "inquirer": "^9.1.2",
     "jsdom": "^20.0.0",
     "sequelize": "^6.25.0",
+    "shelljs": "^0.8.5",
     "sqlite3": "^5.1.2"
   }
 }

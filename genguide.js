@@ -40,8 +40,8 @@ async function index(seq, name, type, filepath, desc) {
   await seq.query(CMD + `('${name}', '${type}', '${path}');`);  // add to table
 }
 
-export const generate = async (baseUrl, docName, version) => {
-  const docPath = docName + "/Contents/Resources/Documents/";
+export const generate = async (baseUrl, docPrefix, version) => {
+  const docPath = docPrefix + "/Contents/Resources/Documents/";
   baseUrl = new URL(baseUrl);  // ensure URL, will be const as this is a single page webapp
   if (baseUrl.href.at(-1) != "/") err("baseUrl must end in '/'");
   log(baseUrl.href);
@@ -57,7 +57,7 @@ export const generate = async (baseUrl, docName, version) => {
   const seq = new Sequelize({
     dialect: 'sqlite',
     logging: false,
-    storage: `${docName}/Contents/Resources/docSet.dsidx`
+    storage: `${docPrefix}/Contents/Resources/docSet.dsidx`
   });
 
   const doc = dom.window.document;

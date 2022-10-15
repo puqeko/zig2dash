@@ -194,8 +194,8 @@ class DisablableResourceLoader extends ResourceLoader {
 
 // get and emulate webapp at workerData.initData.basUrl address then do some prepocessing before
 // setting up the process handler and sending back the root packages discovered
-export const generate = async (baseUrl, docName) => {
-  const docPath = docName + "/Contents/Resources/Documents/";
+export const generate = async (baseUrl, docPrefix) => {
+  const docPath = docPrefix + "/Contents/Resources/Documents/";
   baseUrl = new URL(baseUrl);  // ensure URL, will be const as this is a single page webapp
   if (baseUrl.href.at(-1) != "/") err("baseUrl must end in '/'");
   log(baseUrl.href);
@@ -293,7 +293,7 @@ export const generate = async (baseUrl, docName) => {
   const db = new Sequelize({
     dialect: 'sqlite',
     logging: false,
-    storage: `${docName}/Contents/Resources/docSet.dsidx`
+    storage: `${docPrefix}/Contents/Resources/docSet.dsidx`
   });
 
   log("Done \tEmpty \tName");
