@@ -2,6 +2,8 @@
 
 Create a static .docset of Zig language documentation for use in [Dash](https://kapeli.com/dash) as per [this guide](https://kapeli.com/docsets#dashDocset).
 
+Produces .tgz for upload as a [Dash User Contribution](https://github.com/Kapeli/Dash-User-Contributions) but could also be used anywhere that accepts a `.docset`.
+
 To include:
 - [Zig Standard Library](https://ziglang.org/documentation/master/std/)
 - [Zig Language Reference](https://ziglang.org/documentation/master/)
