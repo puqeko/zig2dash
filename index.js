@@ -14,7 +14,7 @@ const main = async () => {
     type: "list",
     name: "ver",
     message: `Version?`,
-    choices: ["0.9.1", "master"]
+    choices: ["0.9.1", "0.10.0", "master"]
   })).ver;
 
   const docPrefix = `./${version}/Zig.docset`;
