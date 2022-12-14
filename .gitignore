@@ -1,5 +1,6 @@
 # Extra
 
+.vscode
 *.docset
 .DS_Store
 log.txt
