@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 import fs from 'fs-extra';
 import inq from 'inquirer';
 import { Sequelize } from 'sequelize';

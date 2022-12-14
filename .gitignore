@@ -4,6 +4,7 @@
 .DS_Store
 log.txt
 cache
+[0-9].[0-9].[0-9]*/
 
 # Based on https://raw.githubusercontent.com/github/gitignore/main/Node.gitignore
 

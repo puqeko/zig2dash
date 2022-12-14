@@ -15,19 +15,17 @@ Temporary work around: load the webapp from ziglang.org via [jsdom](https://gith
 # Setup
 
 To install dependencies:
+
+[Bun](https://bun.sh) is a fast all-in-one JavaScript runtime; a drop in replacment for [Node](https://nodejs.org).
+
 ```bash
-yarn install
-```
-or
-```bash
-npm install
+bun install
 ```
 
 To run:
+
 ```bash
-yarn gen
+bun run index.js
 ```
-or
-```bash
-node index.js
-```
+
+Takes about 20 mins to process the guide and std v0.11 on my machine.
