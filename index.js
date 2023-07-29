@@ -13,8 +13,8 @@ const main = async () => {
   const version = (await inq.prompt({
     type: "list",
     name: "ver",
-    message: `Version?`,
-    choices: ["0.9.1", "0.10.0", "master"]
+    message: `Version`,
+    choices: ["master", "0.11.0", "0.10.1", "0.10.0", "0.9.1"]
   })).ver;
 
   const docPrefix = `./${version}/Zig.docset`;

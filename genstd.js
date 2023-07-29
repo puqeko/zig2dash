@@ -30,9 +30,11 @@ const toName = (key, rootPkgName) => {
   if (!rootPkgName) throw Error("please pass pkgRootName when using toName");
   if (!key) return rootPkgName;
   let s = key;
-  if (s.startsWith("#")) s = s.slice(1);
-  if (s.endsWith(";")) s = s.slice(0, -1);
-  s = s.replace(";", ".");
+  if (s.startsWith("#A")) s = s.slice(2);  // api keys only
+  else if (s.startsWith("#")) throw Error("Unsupported key " + key);
+  if (s.startsWith(";")) s = s.slice(1);
+  if (s.endsWith(":")) s = s.slice(0, -1);
+  s = s.replace(":", ".");
   if (s.startsWith("root"))
     s = s.replace("root", rootPkgName);
   return s;
@@ -107,7 +109,7 @@ let nEmpty = 0;
 const render = async (baseUrl, docPath, db, els, sects, ignoreTypes, version, next) => {
   const {thisType, thisHash, parentName} = next;
   const rootName = parentName.split('.').at(0);
-  const {mainEl, titleEl, linkEl} = els;
+  const {mainEl, titleEl, linkEl, scriptEl} = els;
   const name = toName(thisHash, rootName);
   titleEl.innerHTML = name.split(".").at(-1);
   const dirpath = toDir(name);
@@ -126,13 +128,15 @@ const render = async (baseUrl, docPath, db, els, sects, ignoreTypes, version, ne
   for (const type in sects) {
     const {el, anchorEl} = sects[type];
     const isHidden = el.className.split(/\s+/).includes("hidden");
-    if (isHidden) anchorEl.className = "hidden";  // so dash doesn't register the anchor
-    else anchorEl.className = "dashAnchor";
+    if (anchorEl) {
+      if (isHidden) anchorEl.className = "hidden";  // so dash doesn't register the anchor
+      else anchorEl.className = "dashAnchor";
+    }
     for (const a of el.querySelectorAll("a")) {
-      const cname = toName(a.hash, rootName);
       excluded.add(a);
       if (isHidden || a == anchorEl) continue;
       if (shouldFollow(baseUrl, a)) {
+        const cname = toName(a.hash, rootName);
         // don't index fields
         if (cname.startsWith(name) && !ignoreTypes.includes(type))
           toFollow.unshift({type, hash: a.hash, parentName: name});
@@ -147,16 +151,24 @@ const render = async (baseUrl, docPath, db, els, sects, ignoreTypes, version, ne
   const rendering = startNextRender();  // dom is hot until this is awaited, don't touch it
 
   // function anchors
-  const listfnEl = copy.window.document.getElementById("listFns");
-  if (!listfnEl) err("coud not find #listFns element");
-  for (const lf of listfnEl.children) {
-    const fnameEl = lf.querySelector(".tok-fn");
-    if (!fnameEl) continue;  // TODO FIX
-    const anchorEl = copy.window.document.createElement("a");
-    anchorEl.setAttribute("name", `//apple_ref/cpp/Function/${encodeURIComponent(fnameEl.textContent)}`);
-    anchorEl.className = "dashAnchor";
-    if (newerThanOrEqual(version, "0.10")) lf.insertBefore(anchorEl, lf.firstElementChild);
-    else fnameEl.parentElement.insertBefore(anchorEl, fnameEl.parentElement.firstChild);
+  let fnHidden = sects["Function"].el.className.split(/\s+/).includes("hidden");
+  if (!fnHidden) {
+    const listfnEl = copy.window.document.getElementById("listFns");
+    if (!listfnEl) err("coud not find #listFns element");
+    for (const lf of listfnEl.children) {
+      let fnameEl;
+      if (newerThanOrEqual(version, "0.11")) fnameEl = lf.querySelector(".fnSignature a .zig_identifier");
+      else fnameEl = lf.querySelector(".tok-fn");
+      if (!fnameEl) {
+        err("could not find function signature");
+        continue;
+      }
+      const anchorEl = copy.window.document.createElement("a");
+      anchorEl.setAttribute("name", `//apple_ref/cpp/Function/${encodeURIComponent(fnameEl.textContent)}`);
+      anchorEl.className = "dashAnchor";
+      if (newerThanOrEqual(version, "0.10")) lf.insertBefore(anchorEl, lf.firstElementChild);
+      else fnameEl.parentElement.insertBefore(anchorEl, fnameEl.parentElement.firstChild);
+    }
   }
 
   // online redirect marker
@@ -166,6 +178,7 @@ const render = async (baseUrl, docPath, db, els, sects, ignoreTypes, version, ne
 
   for (const el of copy.window.document.querySelectorAll(".hidden")) el.remove();
   for (const s of copy.window.document.querySelectorAll("script")) s.remove();
+  copy.window.document.head.appendChild(scriptEl);
 
   const docsEl = copy.window.document.querySelector(".docs");
   if (docsEl.children.length == 0) {
@@ -198,8 +211,9 @@ export const generate = async (baseUrl, docPrefix) => {
   const docPath = docPrefix + "/Contents/Resources/Documents/";
   baseUrl = new URL(baseUrl);  // ensure URL, will be const as this is a single page webapp
   if (baseUrl.href.at(-1) != "/") err("baseUrl must end in '/'");
-  log(baseUrl.href);
-  dom = await JSDOM.fromURL(baseUrl, {
+  const apiUrl = new URL(baseUrl.href + "#A;");
+  log(apiUrl.href);
+  dom = await JSDOM.fromURL(apiUrl, {
     runScripts: "dangerously",
     resources: "usable",
     pretendToBeVisual: true,
@@ -215,7 +229,9 @@ export const generate = async (baseUrl, docPrefix) => {
   if (!/^\d+\.\d+\.\d+$/.test(version)) version += " (master)";
   log(`Loaded version: ${version}`);
 
-  let pkgsUl = doc.querySelector(".packages");
+  let pkgsUl;
+  if (newerThanOrEqual(version, "0.11")) pkgsUl = doc.querySelector("#apiMenu .modules");
+  else pkgsUl = doc.querySelector("#apiMenu .packages");
   if (!pkgsUl) throw Error("could not find package list");
   for (const pkgLi of pkgsUl.children) {
     const a = pkgLi.querySelector('a');
@@ -223,7 +239,7 @@ export const generate = async (baseUrl, docPrefix) => {
   }
   const foundLibs = [];
   for (const {name} of libs) foundLibs.push(name);
-  if (foundLibs.length) log("Found libraries", foundLibs.join(", "));
+  if (foundLibs.length) log(`Found librar${foundLibs.length == 1 ? "y" : "ies"}`, foundLibs.join(", "));
   else {
     log("No libraries found!");
     return;
@@ -242,6 +258,7 @@ export const generate = async (baseUrl, docPrefix) => {
   doc.getElementById("sectSearchNoResults")?.remove();
   doc.getElementById("helpModal")?.remove();
   doc.getElementById("status")?.remove();
+  doc.getElementById("guidesMenu")?.remove();
   doc.querySelector(".sidebar")?.remove();
   doc.querySelector(".flex-filler")?.remove();
   doc.querySelector("link")?.remove();  // icon
@@ -260,6 +277,17 @@ export const generate = async (baseUrl, docPrefix) => {
   linkEl.setAttribute("rel", "stylesheet");
   isLoadingResourcesDisabled = true;  // don't load newly inserted link tag
   doc.querySelector("head").appendChild(linkEl);
+
+  const scriptEl = doc.createElement("script");  // Allow expanding [+] to work.
+  scriptEl.innerHTML = `\
+  function toggleExpand(event) {
+    const parent = event.target.parentElement;
+    parent.toggleAttribute("open");
+  
+    if (!parent.open && parent.getBoundingClientRect().top < 0) {
+      parent.parentElement.parentElement.scrollIntoView(true);
+    }
+  }`;
   
   const sects = {  // will traverse links we find in these sections and label them with the associated type
     "Type": "sectTypes",  // these are id values for getElementById labeled with dash types
@@ -271,16 +299,22 @@ export const generate = async (baseUrl, docPrefix) => {
     "Field": "sectFields",
     "Example": "fnExamples",
     "Parameter": "sectParams",
+    "TLDR": "tldDocs",
   };
-  const ignoreTypes = ["Field", "Example", "Parameter"];  // exclude from index but include in TOC and convert links
+  const ignoreTypes = ["TLDR", "Field", "Example", "Parameter"];  // exclude from index but include in TOC and convert links
   for (const type in sects) {
     const el = doc.getElementById(sects[type]);
-    const h2 = el.querySelector('h2');
-    const anchorEl = doc.createElement("a");
-    anchorEl.setAttribute("name", `//apple_ref/cpp/Section/${encodeURIComponent(h2.textContent)}`);
-    anchorEl.className = "dashAnchor";
-    el.insertBefore(anchorEl, h2);
-    sects[type] = {el, anchorEl};
+    if (type !== "TLDR") {
+      const h2 = el.querySelector('h2');
+      const anchorEl = doc.createElement("a");
+      anchorEl.setAttribute("name", `//apple_ref/cpp/Section/${encodeURIComponent(h2.textContent)}`);
+      anchorEl.className = "dashAnchor";
+      el.insertBefore(anchorEl, h2);
+      sects[type] = {el, anchorEl};
+    }
+    else {
+      sects[type] = {el, anchorEl: undefined};
+    }
   }
   const types = [];
   for (const type in sects) if (!ignoreTypes.includes(type)) types.push(type);
@@ -288,7 +322,7 @@ export const generate = async (baseUrl, docPrefix) => {
 
   const mainEl = doc.querySelector(".docs");
   const titleEl = doc.querySelector("title");
-  const els = {mainEl, titleEl, linkEl};
+  const els = {mainEl, titleEl, linkEl, scriptEl};
 
   const db = new Sequelize({
     dialect: 'sqlite',
@@ -309,6 +343,7 @@ export const generate = async (baseUrl, docPrefix) => {
     process.stdout.write(ostr.slice(0, process.stdout.columns || 60));
     next = pnext;
   }
+  process.stdout.write('\n');
   log();
 
   const foundTypes = [];
