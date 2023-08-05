@@ -189,6 +189,9 @@ const render = async (baseUrl, docPath, db, els, sects, ignoreTypes, version, ne
     const parentPage = `Try the <a href='${parentPath}'>${parentName}</a> page or try `;
     const webPage = `<a href='${baseUrl.href + thisHash}'>the website</a>.`;
     docsEl.innerHTML = `Not avaliable yet. ` + parentPage + webPage;
+    process.stdout.clearLine();
+    process.stdout.cursorTo(0);
+    process.stdout.write("Check 404: " + baseUrl.href + thisHash + '\n');
   }
 
   const filepath = toPath(name);
@@ -352,7 +355,7 @@ export const generate = async (baseUrl, docPrefix) => {
     storage: `${docPrefix}/Contents/Resources/docSet.dsidx`
   });
 
-  log("Done \tEmpty \tName");
+  log("Done \t404? \tName");
 
   let nProcessed = 0;
   let next = await startNextRender();
