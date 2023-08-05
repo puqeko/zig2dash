@@ -8,6 +8,7 @@
 
 	<key>isDashDocset</key><true/>
 	<key>DashDocSetDefaultFTSEnabled</key><true/> <!-- enable Full-text Search -->
+	<key>isJavaScriptEnabled</key><true/>
 	<key>DashDocSetFamily</key><string>dashtoc</string> <!-- enable TOC -->
 	<key>dashIndexFilePath</key><string>Zig Language Reference.html</string> <!-- set main page -->
 </dict>

@@ -115,6 +115,7 @@ const render = async (baseUrl, docPath, db, els, sects, ignoreTypes, version, ne
   const dirpath = toDir(name);
   const dotsToRoot = "../".repeat(dirpath.split("/").length - 1);
   linkEl.setAttribute("href", dotsToRoot + "style.css");
+  scriptEl.setAttribute("src", dotsToRoot + "script.js");
   
   // const filestr = dom.serialize();
   const allDocLinks = new Set(mainEl.querySelectorAll("a"));
@@ -265,21 +266,18 @@ export const generate = async (baseUrl, docPrefix) => {
   for (const inp of doc.querySelectorAll("input")) inp.remove();
 
   // extract style
-  const styleEl = doc.querySelector("style");
+  const styleEls = doc.querySelectorAll("head style");
   const spath = `${docPath}style.css`;
-  await fs.outputFile(spath, styleEl.innerHTML + "\n.flex-main{overflow-y: auto;}");
+  let style = "";
+  for (const styleEl of styleEls) {
+    style += styleEl.innerHTML;
+    styleEl.remove();
+  }
+
+  await fs.outputFile(spath, style + ".flex-main{overflow-y: auto;}");
   log(`Created style.css`);
-  styleEl.remove();
 
-  // add link to style.css
-  const linkEl = doc.createElement("link");
-  linkEl.setAttribute("href", "style.css");  // update for each page later
-  linkEl.setAttribute("rel", "stylesheet");
-  isLoadingResourcesDisabled = true;  // don't load newly inserted link tag
-  doc.querySelector("head").appendChild(linkEl);
-
-  const scriptEl = doc.createElement("script");  // Allow expanding [+] to work.
-  scriptEl.innerHTML = `\
+  const scriptText = `\
   function toggleExpand(event) {
     const parent = event.target.parentElement;
     parent.toggleAttribute("open");
@@ -288,6 +286,18 @@ export const generate = async (baseUrl, docPrefix) => {
       parent.parentElement.parentElement.scrollIntoView(true);
     }
   }`;
+  const scpath = `${docPath}script.js`;
+  await fs.outputFile(scpath, scriptText);
+  log(`Created script.js`);
+
+  // add link to style.css
+  const linkEl = doc.createElement("link");
+  const scriptEl = doc.createElement("script");
+  linkEl.setAttribute("href", "style.css");  // update for each page later
+  linkEl.setAttribute("rel", "stylesheet");
+  isLoadingResourcesDisabled = true;  // don't load newly inserted link tag
+  doc.querySelector("head").appendChild(linkEl);
+  doc.querySelector("head").appendChild(scriptEl);
   
   const sects = {  // will traverse links we find in these sections and label them with the associated type
     "Type": "sectTypes",  // these are id values for getElementById labeled with dash types
