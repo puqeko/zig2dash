@@ -5,6 +5,7 @@ import fs from 'fs-extra';
 import { JSDOM, VirtualConsole, ResourceLoader } from 'jsdom';
 import { Sequelize } from 'sequelize';
 import htmlMinify from 'html-minifier';
+import rcs from 'rcs-core'
 
 const log = (...args) => console.log(`[std]`, ...args);
 const htmlMinOpts = {
@@ -190,10 +191,10 @@ const render = async (baseUrl, docPath, db, els, sects, ignoreTypes, version, ne
     docsEl.innerHTML = `Not avaliable yet. ` + parentPage + webPage;
   }
 
-  const filestr = htmlMinify.minify(copy.serialize(), htmlMinOpts);
   const filepath = toPath(name);
-  const writing = fs.outputFile(docPath + filepath, filestr);
   const indexing = index(db, name, thisType, filepath);
+  const filestr = htmlMinify.minify(rcs.replace.html(copy.serialize()), htmlMinOpts);
+  const writing = fs.outputFile(docPath + filepath, filestr);
   await Promise.all([writing, indexing]);
   return rendering;
 };
@@ -254,12 +255,18 @@ export const generate = async (baseUrl, docPrefix) => {
     log("Banner found");
     banEl.textContent = banEl.textContent.split('.').at(0) + ".";
   } else log ("No banner");
-  doc.getElementById("searchPlaceholder")?.remove();
+  if (newerThanOrEqual(version, "0.11")) {
+    const el = doc.getElementById("searchPlaceholder").parentElement.parentElement.parentElement;
+    if (el.className != "wrap") throw new Error("searchPlaceholder Has Changed");
+    el.remove();
+  } else doc.getElementById("searchPlaceholder")?.remove();
   doc.getElementById("sectSearchResults")?.remove();
   doc.getElementById("sectSearchNoResults")?.remove();
   doc.getElementById("helpModal")?.remove();
+  doc.getElementById("prefsModal")?.remove();
   doc.getElementById("status")?.remove();
   doc.getElementById("guidesMenu")?.remove();
+  doc.getElementById("guides")?.remove();
   doc.querySelector(".sidebar")?.remove();
   doc.querySelector(".flex-filler")?.remove();
   doc.querySelector("link")?.remove();  // icon
@@ -273,9 +280,13 @@ export const generate = async (baseUrl, docPrefix) => {
     style += styleEl.innerHTML;
     styleEl.remove();
   }
+  style += ".flex-main{overflow-y: auto;}"
 
-  await fs.outputFile(spath, style + ".flex-main{overflow-y: auto;}");
+  rcs.fillLibraries(style);
+  rcs.optimize();
+  await fs.outputFile(spath, rcs.replace.css(style));
   log(`Created style.css`);
+  rcs.warnings.warn();
 
   const scriptText = `\
   function toggleExpand(event) {
@@ -289,6 +300,7 @@ export const generate = async (baseUrl, docPrefix) => {
   const scpath = `${docPath}script.js`;
   await fs.outputFile(scpath, scriptText);
   log(`Created script.js`);
+
 
   // add link to style.css
   const linkEl = doc.createElement("link");

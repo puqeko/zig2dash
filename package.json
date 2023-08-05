@@ -8,8 +8,11 @@
     "html-minifier": "^4.0.0",
     "inquirer": "^9.1.2",
     "jsdom": "^20.0.0",
+    "rcs-core": "^3.7.1",
+    "rename-css-selectors": "^4.1.0",
     "sequelize": "^6.25.0",
     "shelljs": "^0.8.5",
     "sqlite3": "^5.1.4"
-  }
+  },
+  "devDependencies": {}
 }
