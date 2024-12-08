@@ -19,7 +19,7 @@ With [Node](https://nodejs.org).
 To install dependencies:
 
 ```bash
-node i
+npm i
 ```
 
 To run:
