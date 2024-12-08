@@ -1,5 +1,10 @@
 # Zig 2 Dash
 
+> [!NOTE]
+> Defunct as of Zig 0.12.0. Use `zig std` to instantiate docs offline. See the [release notes](https://ziglang.org/download/0.12.0/release-notes.html#Installed-Standard-Library-Documentation).
+
+----
+
 Create a static .docset of Zig language documentation for use in [Dash](https://kapeli.com/dash) as per [this guide](https://kapeli.com/docsets#dashDocset).
 
 Produces .tgz for upload as a [Dash User Contribution](https://github.com/Kapeli/Dash-User-Contributions) but could also be used anywhere that accepts a `.docset`.
